@@ -3,6 +3,8 @@
 #include "rdebug.h"
 #include "tested_declarations.h"
 #include "rdebug.h"
+#include "tested_declarations.h"
+#include "rdebug.h"
 
 void setBlockCounter(struct disk_t *disk) {
     if (disk != NULL) {
@@ -176,26 +178,21 @@ void formatName(const char *src, char *dest) {
     dest[length] = '\0';
     if (src[8] != ' ') {
         strcat(dest, ".");
+        int dotLength = 0;
         for (int i = 0; i < 3; ++i) {
-            if (src[8 + i] != ' ' && !isalpha((unsigned char)src[8 + i])) {
-                *dest = '\0';
-                return;
+            if (src[8 + i] != ' ' && isalpha((unsigned char)src[8 + i])) {
+                dotLength++;
+            } else {
+                break;
             }
         }
-        strncat(dest, src + 8, 3);
+        if (dotLength == 0) {
+            *dest = '\0';
+            return;
+        }
+        strncat(dest, src + 8, dotLength);
+        dest[length + 1 + dotLength] = '\0';
     }
-}
-
-int validateFileName(char *currentName, const char*fileName){
-    if(currentName == NULL || fileName == NULL){
-        return 0;
-    }
-    char formatedName[11];
-    formatName(currentName, formatedName);
-    if(strcmp(fileName, formatedName) == 0){
-        return 1;
-    }
-    return 0;
 }
 
 struct file_t *file_open(struct volume_t *pvolume, const char *file_name) {
@@ -208,7 +205,7 @@ struct file_t *file_open(struct volume_t *pvolume, const char *file_name) {
         errno = ENOMEM;
         return NULL;
     }
-    struct full_dir_entry_t *rootDir = malloc(pvolume->superblock->root_dir_capacity * FAT_DIR_ENTRY_SIZE);
+    struct full_dir_entry_t *rootDir = malloc(pvolume->superblock->root_dir_capacity * 32);
     if(rootDir == NULL){
         free(newFile);
         errno = ENOMEM;
@@ -220,23 +217,27 @@ struct file_t *file_open(struct volume_t *pvolume, const char *file_name) {
         errno = ENOMEM;
         return NULL;
     }
-    for (int i = 0; i < pvolume->superblock->root_dir_capacity; i++) {
-        struct full_dir_entry_t currentRoot = rootDir[i];
+    int index = 0;
+    while (index <  pvolume->superblock->root_dir_capacity) {
+        struct full_dir_entry_t currentRoot = rootDir[index];
         char *currentName = currentRoot.name;
-        if(validateFileName(currentName, file_name) == 1){
+        char formatedName[11];
+        formatName(currentName, formatedName);
+        if(strcmp(formatedName, file_name) == 0) {
             if(currentRoot.file_attributes & 0x18){
                 free(newFile);
                 free(rootDir);
                 errno = EISDIR;
                 return NULL;
             }
-            newFile->fatEntry = malloc(sizeof(struct full_dir_entry_t));
-            if(newFile->fatEntry == NULL){
+            struct full_dir_entry_t *newFatEntry = malloc(sizeof(struct full_dir_entry_t));
+            if(newFatEntry == NULL){
                 free(newFile);
                 free(rootDir);
                 errno = ENOMEM;
                 return NULL;
             }
+            newFile->fatEntry = newFatEntry;
             memcpy(newFile->fatEntry, &currentRoot, sizeof(struct full_dir_entry_t));
             free(rootDir);
             newFile->filePosition = 0;
@@ -250,6 +251,7 @@ struct file_t *file_open(struct volume_t *pvolume, const char *file_name) {
             free(tempBuffer);
             return newFile;
         }
+        index += 1;
     }
     free(newFile);
     free(rootDir);
@@ -381,7 +383,8 @@ int dir_read(struct dir_t *pdir, struct dir_entry_t *pentry) {
     size_t maxEntries = pdir->volume->superblock->root_dir_capacity;
     while (pdir->dirPosition < maxEntries) {
         struct full_dir_entry_t *currentEntry = &dirEntries[pdir->dirPosition++];
-        formatName(currentEntry->name, pentry->name);
+        char *currentName = currentEntry->name;
+        formatName(currentName, pentry->name);
         if (pentry->name[0] == '\0') {
             continue;
         }
@@ -401,4 +404,3 @@ int dir_close(struct dir_t *pdir){
     free(pdir);
     return -1;
 }
-

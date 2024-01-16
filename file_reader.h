@@ -94,8 +94,6 @@ struct file_t {
 };
 void formatName(const char *src, char *dest);
 
-int validateFileName(char *currentName, const char*fileName);
-
 struct file_t *file_open(struct volume_t *pvolume, const char *file_name);
 
 size_t min(size_t firstElement, size_t secondElement);
@@ -109,7 +107,7 @@ int32_t file_seek(struct file_t *stream, int32_t offset, int whence);
 int file_close(struct file_t *stream);
 
 struct dir_entry_t {
-    char name[11];
+    char name[13];
     uint32_t size;
     uint8_t is_archived;
     uint8_t is_readonly;
